@@ -1,8 +1,8 @@
 import os
 from dotenv import load_dotenv
 from firebase_db import db
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, CallbackQueryHandler
 
 from services.finance import get_gastos_mes, get_ultimas, add_transacao, get_resumo_mes
 from services.parser import parse_input
@@ -10,6 +10,9 @@ from services.categorizer import categorizar
 from services.pluggy import create_connect_token, sync_transactions
 from services.extract.ofx_inter import extract_ofx
 from services.pipeline import run_pipeline
+from services.preview import gerar_preview
+
+cache_import = {}
 
 load_dotenv()
 
@@ -19,6 +22,14 @@ USER_ID = int(os.getenv("USER_ID"))
 def autorizado(user_id):
     return user_id == USER_ID
 
+def botoes_confirmacao():
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Confirmar", callback_data="confirmar_import"),
+            InlineKeyboardButton("❌ Cancelar", callback_data="cancelar_import"),
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not autorizado(update.effective_user.id):
@@ -114,24 +125,54 @@ async def receber_arquivo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if file_name.endswith(".ofx"):
         from services.extract.ofx_inter import extract_ofx
-        from services.pipeline import run_pipeline
 
         transactions = extract_ofx(file_path)
+
+        # salva temporariamente por usuário
+        user_id = update.effective_user.id
+        cache_import[user_id] = transactions
+
+        preview = gerar_preview(transactions)
+
+        msg = "📄 Preview do OFX\n\n"
+        msg += f"Transações: {preview['qtd']}\n"
+        msg += f"💸 Total gasto: R$ {preview['total']:.2f}\n\n"
+
+        msg += "📊 Categorias:\n"
+        for cat, valor in preview["categorias"]:
+            msg += f"- {cat}: R$ {valor:.2f}\n"
+
+        msg += "\nDeseja importar?"
+
+        await update.message.reply_text(
+            msg,
+            reply_markup=botoes_confirmacao()
+        )
+
+async def handle_confirmacao(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    if user_id not in cache_import:
+        await query.edit_message_text("❌ Nenhum arquivo pendente.")
+        return
+
+    if query.data == "confirmar_import":
+        transactions = cache_import[user_id]
         total = run_pipeline(transactions)
 
-        await update.message.reply_text(
-            f"✅ {total} transações importadas (OFX)"
+        del cache_import[user_id]
+
+        await query.edit_message_text(
+            f"✅ {total} transações importadas com sucesso!"
         )
 
-    elif file_name.endswith(".csv"):
-        await update.message.reply_text(
-            "⚠️ CSV desativado por enquanto"
-        )
+    elif query.data == "cancelar_import":
+        del cache_import[user_id]
 
-    else:
-        await update.message.reply_text(
-            "❌ Formato não suportado"
-        )
+        await query.edit_message_text("❌ Importação cancelada.")
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -143,3 +184,4 @@ app.add_handler(CommandHandler("resumo", resumo))
 app.add_handler(CommandHandler("conectar", conectar_banco))
 app.add_handler(CommandHandler("sincronizar", sync))
 app.add_handler(MessageHandler(filters.Document.ALL, receber_arquivo))
+app.add_handler(CallbackQueryHandler(handle_confirmacao))
