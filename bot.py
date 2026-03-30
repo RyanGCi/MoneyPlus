@@ -4,6 +4,8 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 from services.finance import get_gastos_mes, get_ultimas, add_transacao, get_resumo_mes
+from services.parser import parse_input
+from services.categorizer import categorizar
 
 load_dotenv()
 
@@ -45,29 +47,37 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not autorizado(update.effective_user.id):
         return
 
-    try:
-        valor = float(context.args[0])
-        descricao = " ".join(context.args[1:])
-        add_transacao(descricao, -abs(valor))
+    texto = " ".join(context.args)
 
-        await update.message.reply_text("Transação adicionada ✅")
-    except:
-        await update.message.reply_text("Uso: /add 50 mercado")
+    parsed = parse_input(texto)
+
+    categoria = categorizar(parsed["descricao"])
+
+    db.collection("transacoes").add({
+        "valor": -abs(parsed["valor"]),
+        "descricao": parsed["descricao"],
+        "categoria": categoria,
+        "data": parsed["data"]
+    })
+
+    await update.message.reply_text(
+        f"💸 {parsed['descricao']} - R$ {parsed['valor']:.2f} ({categoria})"
+    )
 
 async def resumo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not autorizado(update.effective_user.id):
-        return
-
-    data = get_resumo_mes()
+    total, categorias = get_resumo_mes()
 
     msg = "📊 Resumo do mês\n\n"
-    msg += f"💰 Receita: R$ {data['receita']:.2f}\n"
-    msg += f"💸 Gastos: R$ {data['gastos']:.2f}\n"
-    msg += f"📉 Saldo: R$ {data['saldo']:.2f}\n\n"
+    msg += f"💸 Total gasto: R$ {total:.2f}\n\n"
 
-    msg += "📂 Top categorias:\n"
-    for cat, valor in data["categorias"]:
-        msg += f"- {cat}: R$ {valor:.2f}\n"
+    msg += "📂 Categorias:\n"
+    for cat, valor in categorias[:3]:
+        porcentagem = (valor / total) * 100 if total > 0 else 0
+        msg += f"- {cat}: R$ {valor:.2f} ({porcentagem:.1f}%)\n"
+
+    if categorias:
+        top_cat = categorias[0]
+        msg += f"\n🔥 Maior gasto: {top_cat[0]}"
 
     await update.message.reply_text(msg)
 

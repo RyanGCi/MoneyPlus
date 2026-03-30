@@ -39,33 +39,18 @@ def get_resumo_mes():
     docs = db.collection("transacoes").stream()
 
     total_gastos = 0
-    total_receita = 0
-    categorias = defaultdict(float)
-
-    now = datetime.now()
+    categorias = {}
 
     for doc in docs:
         d = doc.to_dict()
-        data = datetime.fromisoformat(d["data"])
+        valor = float(d["valor"])
 
-        if data.month == now.month and data.year == now.year:
-            valor = float(d["valor"])
-            categoria = d.get("categoria", "outros")
+        if valor < 0:
+            total_gastos += abs(valor)
+            cat = d.get("categoria", "outros")
 
-            if valor < 0:
-                total_gastos += abs(valor)
-                categorias[categoria] += abs(valor)
-            else:
-                total_receita += valor
+            categorias[cat] = categorias.get(cat, 0) + abs(valor)
 
-    saldo = total_receita - total_gastos
+    top = sorted(categorias.items(), key=lambda x: x[1], reverse=True)
 
-    # Top categorias
-    top_categorias = sorted(categorias.items(), key=lambda x: x[1], reverse=True)[:3]
-
-    return {
-        "receita": total_receita,
-        "gastos": total_gastos,
-        "saldo": saldo,
-        "categorias": top_categorias
-    }
+    return total_gastos, top
