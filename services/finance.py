@@ -38,19 +38,24 @@ def add_transacao(descricao, valor):
 def get_resumo_mes():
     docs = db.collection("transacoes").stream()
 
-    total_gastos = 0
+    entradas = 0
+    saidas = 0
     categorias = {}
 
     for doc in docs:
         d = doc.to_dict()
         valor = float(d["valor"])
 
-        if valor < 0:
-            total_gastos += abs(valor)
-            cat = d.get("categoria", "outros")
+        if valor > 0:
+            entradas += valor
+        else:
+            saidas += abs(valor)
 
+            cat = d.get("categoria", "outros")
             categorias[cat] = categorias.get(cat, 0) + abs(valor)
+
+    saldo = entradas - saidas
 
     top = sorted(categorias.items(), key=lambda x: x[1], reverse=True)
 
-    return total_gastos, top
+    return entradas, saidas, saldo, top

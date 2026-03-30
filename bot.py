@@ -86,19 +86,17 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def resumo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    total, categorias = get_resumo_mes()
+    entradas, saidas, saldo, categorias = get_resumo_mes()
 
     msg = "📊 Resumo do mês\n\n"
-    msg += f"💸 Total gasto: R$ {total:.2f}\n\n"
 
-    msg += "📂 Categorias:\n"
+    msg += f"💰 Entradas: R$ {entradas:.2f}\n"
+    msg += f"💸 Saídas: R$ {saidas:.2f}\n"
+    msg += f"📊 Saldo: R$ {saldo:.2f}\n\n"
+
+    msg += "📂 Gastos por categoria:\n"
     for cat, valor in categorias[:3]:
-        porcentagem = (valor / total) * 100 if total > 0 else 0
-        msg += f"- {cat}: R$ {valor:.2f} ({porcentagem:.1f}%)\n"
-
-    if categorias:
-        top_cat = categorias[0]
-        msg += f"\n🔥 Maior gasto: {top_cat[0]}"
+        msg += f"- {cat}: R$ {valor:.2f}\n"
 
     await update.message.reply_text(msg)
 
@@ -133,10 +131,12 @@ async def receber_arquivo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cache_import[user_id] = transactions
 
         preview = gerar_preview(transactions)
-
         msg = "📄 Preview do OFX\n\n"
-        msg += f"Transações: {preview['qtd']}\n"
-        msg += f"💸 Total gasto: R$ {preview['total']:.2f}\n\n"
+        msg += f"Transações: {preview['qtd']}\n\n"
+
+        msg += f"💰 Entradas: R$ {preview['entradas']:.2f}\n"
+        msg += f"💸 Saídas: R$ {preview['saidas']:.2f}\n"
+        msg += f"📊 Saldo: R$ {preview['saldo']:.2f}\n\n"
 
         msg += "📊 Categorias:\n"
         for cat, valor in preview["categorias"]:

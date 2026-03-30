@@ -15,6 +15,7 @@ def run_pipeline(transactions):
     salvas = 0
 
     for t in transactions:
+        t["tipo"] = "entrada" if t["valor"] > 0 else "saida"
         t["categoria"] = categorizar(t["descricao"])
         t["source"] = "ofx"
 
