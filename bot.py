@@ -8,6 +8,8 @@ from services.finance import get_gastos_mes, get_ultimas, add_transacao, get_res
 from services.parser import parse_input
 from services.categorizer import categorizar
 from services.pluggy import create_connect_token, sync_transactions
+from services.extract.ofx_inter import extract_ofx
+from services.pipeline import run_pipeline
 
 load_dotenv()
 
@@ -22,13 +24,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not autorizado(update.effective_user.id):
         return
     await update.message.reply_text("Bot financeiro ativo 💰" \
-    "\n Comandos Suportados:" \
-    "\n \\adicionar" \
-    "\n \\gastos_mes" \
-    "\n \\resumo" \
-    "\n \\ultimas" \
-    "\n \\conectar (Open Finance)" \
-    "\n \\sincronizar (Open Finance)")
+    "\nComandos Suportados:" \
+    "\n\n/adicionar" \
+    "\n/gastos_mes" \
+    "\n/resumo" \
+    "\n/ultimas" \
+    "\n/receber_ofx")
 
 
 async def gastos_mes(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -114,6 +115,29 @@ async def receber_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("✅ CSV processado com sucesso!")
 
+async def receber_ofx(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    document = update.message.document
+
+    if not document.file_name.endswith(".ofx"):
+        await update.message.reply_text("❌ Envie um arquivo OFX válido.")
+        return
+
+    file = await document.get_file()
+
+    file_path = f"/tmp/{document.file_name}"
+    await file.download_to_drive(file_path)
+
+    try:
+        transactions = extract_ofx(file_path)
+        total = run_pipeline(transactions)
+
+        await update.message.reply_text(
+            f"✅ {total} transações importadas com sucesso!"
+        )
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Erro ao processar OFX: {e}")
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
@@ -124,3 +148,4 @@ app.add_handler(CommandHandler("resumo", resumo))
 app.add_handler(CommandHandler("conectar", conectar_banco))
 app.add_handler(CommandHandler("sincronizar", sync))
 app.add_handler(MessageHandler(filters.Document.ALL, receber_csv))
+app.add_handler(MessageHandler(filters.Document.ALL, receber_ofx))
