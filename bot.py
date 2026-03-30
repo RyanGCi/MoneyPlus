@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from firebase_db import db
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 from services.finance import get_gastos_mes, get_ultimas, add_transacao, get_resumo_mes
 from services.parser import parse_input
@@ -103,6 +103,17 @@ async def sync(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sync_transactions()
     await update.message.reply_text("✅ Transações sincronizadas!")
 
+async def receber_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    file = await update.message.document.get_file()
+
+    file_path = f"/tmp/{update.message.document.file_name}"
+    await file.download_to_drive(file_path)
+
+    from services.csv_importer import process_csv
+    process_csv(file_path)
+
+    await update.message.reply_text("✅ CSV processado com sucesso!")
+
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
@@ -112,3 +123,4 @@ app.add_handler(CommandHandler("adicionar", add))
 app.add_handler(CommandHandler("resumo", resumo))
 app.add_handler(CommandHandler("conectar", conectar_banco))
 app.add_handler(CommandHandler("sincronizar", sync))
+app.add_handler(MessageHandler(filters.Document.ALL, receber_csv))
