@@ -20,7 +20,12 @@ def autorizado(user_id):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not autorizado(update.effective_user.id):
         return
-    await update.message.reply_text("Bot financeiro ativo 💰")
+    await update.message.reply_text("Bot financeiro ativo 💰" \
+    "/n Comandos Suportados:" \
+    "/n //add" \
+    "/n //gastos_mes" \
+    "/n //resumo" \
+    "/n //ultimas")
 
 
 async def gastos_mes(update: Update, context: ContextTypes.DEFAULT_TYPE):
