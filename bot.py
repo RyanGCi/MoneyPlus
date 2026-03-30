@@ -7,6 +7,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from services.finance import get_gastos_mes, get_ultimas, add_transacao, get_resumo_mes
 from services.parser import parse_input
 from services.categorizer import categorizar
+from services.pluggy import create_connect_token, sync_transactions
 
 load_dotenv()
 
@@ -22,10 +23,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text("Bot financeiro ativo 💰" \
     "\n Comandos Suportados:" \
-    "\n \\add" \
+    "\n \\adicionar" \
     "\n \\gastos_mes" \
     "\n \\resumo" \
-    "\n \\ultimas")
+    "\n \\ultimas" \
+    "\n \\conectar (Open Finance)" \
+    "\n \\sincronizar (Open Finance)")
 
 
 async def gastos_mes(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -87,11 +90,25 @@ async def resumo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(msg)
 
+async def conectar_banco(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    token = create_connect_token()
+
+    link = f"https://connect.pluggy.ai?connect_token={token}"
+
+    await update.message.reply_text(
+        f"🔗 Conecte sua conta:\n{link}"
+    )
+
+async def sync(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sync_transactions()
+    await update.message.reply_text("✅ Transações sincronizadas!")
 
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("gastos_mes", gastos_mes))
 app.add_handler(CommandHandler("ultimas", ultimas))
-app.add_handler(CommandHandler("add", add))
+app.add_handler(CommandHandler("adicionar", add))
 app.add_handler(CommandHandler("resumo", resumo))
+app.add_handler(CommandHandler("conectar", conectar_banco))
+app.add_handler(CommandHandler("sincronizar", sync))
