@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-from services.finance import get_gastos_mes, get_ultimas, add_transacao
+from services.finance import get_gastos_mes, get_ultimas, add_transacao, get_resumo_mes
 
 load_dotenv()
 
@@ -54,6 +54,23 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         await update.message.reply_text("Uso: /add 50 mercado")
 
+async def resumo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not autorizado(update.effective_user.id):
+        return
+
+    data = get_resumo_mes()
+
+    msg = "📊 Resumo do mês\n\n"
+    msg += f"💰 Receita: R$ {data['receita']:.2f}\n"
+    msg += f"💸 Gastos: R$ {data['gastos']:.2f}\n"
+    msg += f"📉 Saldo: R$ {data['saldo']:.2f}\n\n"
+
+    msg += "📂 Top categorias:\n"
+    for cat, valor in data["categorias"]:
+        msg += f"- {cat}: R$ {valor:.2f}\n"
+
+    await update.message.reply_text(msg)
+
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -61,3 +78,4 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("gastos_mes", gastos_mes))
 app.add_handler(CommandHandler("ultimas", ultimas))
 app.add_handler(CommandHandler("add", add))
+app.add_handler(CommandHandler("resumo", resumo))
